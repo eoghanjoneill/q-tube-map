@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quorum Underground</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #C2BDB5; font-family: 'Barlow', Arial, sans-serif; padding: 22px 28px 30px; min-height: 100vh; }
+.page { max-width: 1440px; margin: 0 auto; }
+
+.map-header { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+.title h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 700; color: #003688; letter-spacing: 0.07em; text-transform: uppercase; }
+.title p  { margin-top: 5px; font-size: 13px; color: #666; max-width: 620px; line-height: 1.5; }
+.btn-dl   { margin-left: auto; padding: 9px 18px; background: #003688; color: #fff; border: none; border-radius: 3px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s; }
+.btn-dl:hover { background: #0044b0; }
+
+.map-card { background: #FEFDF5; border: 1.5px solid #AEAAA0; border-radius: 5px; overflow: hidden; box-shadow: 0 3px 20px rgba(0,0,0,0.14); }
+#map-svg  { display: block; width: 100%; }
+
+.info-panel { margin-top: 11px; background: #FEFDF5; border: 1px solid #CCCABE; border-radius: 4px; padding: 12px 18px; min-height: 58px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; box-shadow: 0 1px 5px rgba(0,0,0,0.06); }
+.info-placeholder { color: #999; font-style: italic; font-size: 13px; }
+.info-name  { font-weight: 700; font-size: 15px; color: #111; flex-shrink: 0; }
+.info-badge { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 10px; border-radius: 2px; color: white; flex-shrink: 0; }
+.info-xchg  { font-size: 11px; color: #888; font-style: italic; }
+.info-conns { font-size: 12px; color: #444; flex: 1; line-height: 1.9; }
+.conn-chip      { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; white-space: nowrap; }
+.conn-dot       { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.conn-dot-bus   { display: inline-block; width: 8px; height: 8px; border: 2px dashed #888; border-radius: 50%; flex-shrink: 0; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 12px 22px; margin-top: 11px; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #333; }
+.leg-swatch  { width: 28px; height: 6px; border-radius: 3px; }
+.leg-bus     { width: 28px; border-top: 2px dashed #888; }
+.leg-xchg    { width: 14px; height: 14px; border: 2.5px solid #444; border-radius: 50%; background: white; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="map-header">
+    <!--
+      ROUNDEL — construction order matters:
+      1. White filled circle (interior)
+      2. Red ring stroke on top
+      3. Blue bar overlapping the ring (drawn LAST so it sits in front)
+      4. White text filling the banner
+    -->
+    <svg width="92" height="92" viewBox="-56 -56 112 112" style="flex-shrink:0" aria-label="Quorum Underground roundel">
+      <circle cx="0" cy="0" r="46" fill="white"/>
+      <circle cx="0" cy="0" r="46" fill="none" stroke="#DC241F" stroke-width="18"/>
+      <rect   x="-57" y="-15" width="114" height="30" fill="#003688"/>
+      <text x="0" y="-1.5" text-anchor="middle" fill="white"
+            font-family="'Barlow Condensed',Arial Narrow,sans-serif"
+            font-size="15" font-weight="700"
+            textLength="106" lengthAdjust="spacingAndGlyphs">QUORUM</text>
+      <text x="0" y="13" text-anchor="middle" fill="white"
+            font-family="'Barlow Condensed',Arial Narrow,sans-serif"
+            font-size="9.5" font-weight="600"
+            textLength="112" lengthAdjust="spacingAndGlyphs">UNDERGROUND</text>
+    </svg>
+
+    <div class="title">
+      <h1>Quorum Underground</h1>
+      <p>Product integration map — hover to explore connections, click to pin.
+         Line intersections ⊙ are cross-family interchange stations.
+         Dashed routes show additional cross-family connections.</p>
+    </div>
+
+    <button class="btn-dl" onclick="downloadRoundel()">↓ Roundel SVG</button>
+  </header>
+
+  <div class="map-card">
+    <svg id="map-svg" viewBox="0 0 1380 710" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="info-panel" id="info-panel">
+    <span class="info-placeholder">Hover over a station to explore integrations</span>
+  </div>
+
+  <div class="legend" id="legend"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ── FAMILIES ───────────────────────────────────────────── */
+const LINE_DEFS = {
+  per:     { name:'Planning, Economics & Reserves', color:'#6B3FA0' },
+  field:   { name:'Field Measurement',              color:'#BF6500' },
+  od:      { name:'Upstream On-Demand',             color:'#0065AE' },
+  finance: { name:'Finance & Transactions',         color:'#CC1A1A' },
+  docs:    { name:'Document Management',            color:'#0B7D4E' },
+};
+
+/*
+  LAYOUT OVERVIEW
+  ───────────────
+  PE&R Planning   ──── straight y=115 ────────────────────────────────────►
+  PE&R Execute    ────── diagonal fork from Enersight, horizontal y=248 ──►
+  Field Meas      ──── mostly y=385, dips to y=415 at FLOWCAL ────────────►
+  On Demand       ──── y=530, arches UP to y=248 at Execute AFE, back down►
+  Finance         ──── bezier mountain: eONE → OD Accounting → FLOWCAL → TIPS → QPTM
+  Docs            ──── short stub y=385 (far right)
+
+  THREE INTERCHANGE STATIONS (lines physically share the point):
+    FLOWCAL      (415,415) — Field Measurement × Finance
+    OD Accounting(285,530) — On-Demand × Finance
+    Execute AFE  (760,248) — PE&R Execute × On-Demand
+
+  SIX BUS ROUTES (remaining cross-family, dashed):
+    FLOWCAL → OD SCADA
+    Val Nav → OD Accounting
+    Val Nav → OD Prod Ops
+    Dynamic Docs → Execute Platform
+    Dynamic Docs → OD Accounting
+    Dynamic Docs → OD Well Ops
+*/
+
+/* ── PRODUCTS ───────────────────────────────────────────── */
+const PRODUCTS = [
+  // PE&R – Planning  y = 115
+  { id:'petrovr',       label:'PetroVR',             line:'per',   x:90,   y:115 },
+  { id:'valnav',        label:'Val Nav',             line:'per',   x:235,  y:115 },
+  { id:'reserves',      label:'Reserves',            line:'per',   x:380,  y:115 },
+  { id:'enersight',     label:'Enersight',           line:'per',   x:505,  y:115, junction:true },
+  { id:'ps-dataflow',   label:'PS Dataflow',         line:'per',   x:655,  y:115, full:'Planning Space – Dataflow' },
+  { id:'ps-economics',  label:'PS Economics',        line:'per',   x:800,  y:115, full:'PlanningSpace – Economics' },
+  { id:'ps-financials', label:'PS Financials',       line:'per',   x:945,  y:115, full:'PlanningSpace – Financials' },
+  { id:'portfolio',     label:'Portfolio',           line:'per',   x:1085, y:115 },
+
+  // PE&R – Execute  y = 248
+  { id:'exec-platform', label:'Execute Platform',    line:'per',   x:615,  y:248, full:'Execute – The Overall Platform' },
+  { id:'exec-afe',      label:'Execute AFE',         line:'per',   x:760,  y:248, full:'Execute – AFE',
+    interchange:true,  xLines:['per','od'] },
+  { id:'exec-cb',       label:'Exec. Cap. Budget',   line:'per',   x:905,  y:248, full:'Execute – Capital Budgeting' },
+  { id:'exec-os',       label:'Exec. Op. Sched.',    line:'per',   x:1050, y:248, full:'Execute – Operational Scheduling' },
+  { id:'exec-wd',       label:'Exec. Well Delivery', line:'per',   x:1195, y:248, full:'Execute – Well Delivery' },
+
+  // Field Measurement  y ≈ 385 (dip to 415 at FLOWCAL)
+  { id:'analyzit', label:'ANALYZEit',    line:'field', x:90,   y:385 },
+  { id:'calcit',   label:'CALCit',       line:'field', x:245,  y:385 },
+  { id:'flowcal',  label:'FLOWCAL',      line:'field', x:415,  y:415, hub:true,
+    interchange:true, xLines:['field','finance'] },
+  { id:'proveit',  label:'PROVEit',      line:'field', x:575,  y:385 },
+  { id:'pycit',    label:'PYCit',        line:'field', x:720,  y:385 },
+  { id:'testit',   label:'TESTit',       line:'field', x:860,  y:385 },
+
+  // Dynamic Docs – floating stub  y = 385
+  { id:'dyndocs',  label:'Dynamic Docs', line:'docs',  x:1255, y:385 },
+
+  // On Demand  y = 530 (arches through Execute AFE at 760,248)
+  { id:'od-land',      label:'OD Land',          line:'od', x:90,   y:530, full:'On Demand Land' },
+  { id:'od-accounting',label:'OD Accounting',    line:'od', x:285,  y:530, full:'On Demand Accounting',
+    interchange:true,  xLines:['od','finance'] },
+  { id:'od-prodops',   label:'OD Prod. Ops.',    line:'od', x:475,  y:530, full:'On Demand Production Operations' },
+  // OD line arches through Execute AFE (760,248) — no extra OD station placed there
+  { id:'od-wellops',   label:'OD Well Ops.',     line:'od', x:945,  y:530, full:'On Demand Well Operations' },
+  { id:'od-scada',     label:'OD SCADA (Legacy)',line:'od', x:1105, y:530, full:'On Demand SCADA (Legacy)' },
+  { id:'zdscada',      label:'zdSCADA',           line:'od', x:1255, y:530 },
+
+  // Finance  y = 650 (Finance rail curves through OD Accounting 285,530 and FLOWCAL 415,415)
+  { id:'eone',  label:'eONE',           line:'finance', x:170, y:650 },
+  { id:'tips',  label:'My Quorum TIPS', line:'finance', x:565, y:650, full:'My Quorum Gathering & Plant Accounting (TIPS)' },
+  { id:'qptm',  label:'My Quorum PTM',  line:'finance', x:795, y:650, full:'My Quorum Pipeline Transaction Management' },
+];
+
+/* ── INTEGRATIONS ───────────────────────────────────────── */
+// bus:true  = cross-family, shown as dashed line (if not already an interchange)
+const INTEGRATIONS = [
+  // PE&R Planning internal
+  { a:'petrovr',      b:'valnav',        d:'PetroVR ↔ Val Nav: well profile import; economics and reserves exchange' },
+  { a:'petrovr',      b:'ps-economics',  d:'PetroVR ↔ PlanningSpace Economics: headless economics-as-a-service calculation engine' },
+  { a:'petrovr',      b:'ps-dataflow',   d:'PetroVR ↔ Planning Space Dataflow: first-class integration; PetroVR data pushed into a Plan Data Store' },
+  { a:'valnav',       b:'reserves',      d:'Val Nav ↔ Reserves: pre-configured integration aligned to Quorum reserves taxonomy' },
+  { a:'valnav',       b:'ps-dataflow',   d:'Val Nav ↔ Planning Space Dataflow: operations details at well or grouped level' },
+  { a:'enersight',    b:'valnav',        d:'Enersight ↔ Val Nav: first-class integration; production forecasts and reserves updated in both systems' },
+  { a:'enersight',    b:'ps-dataflow',   d:'Enersight ↔ Planning Space Dataflow: first-class integration; Plan Data Store drives both directions' },
+  { a:'enersight',    b:'portfolio',     d:'Enersight ↔ Portfolio: direct import of Enersight Plan Data Store data into Portfolio' },
+  { a:'ps-dataflow',  b:'ps-economics',  d:'Planning Space Dataflow ↔ PlanningSpace Economics: Dataflow feeds planning data into Economics; cashflow results returned' },
+  { a:'ps-dataflow',  b:'ps-financials', d:'Planning Space Dataflow ↔ PlanningSpace Financials: Dataflow provides the data Financials uses to calculate' },
+  { a:'ps-dataflow',  b:'portfolio',     d:'Planning Space Dataflow ↔ Portfolio: direct Portfolio import of Dataflow variables and data' },
+  { a:'ps-economics', b:'portfolio',     d:'PlanningSpace Economics ↔ Portfolio: direct import of Economics results sets' },
+  { a:'ps-financials',b:'portfolio',     d:'PlanningSpace Financials ↔ Portfolio: direct import of Financials results sets' },
+  // PE&R cross-branch (Planning ↔ Execute, same family)
+  { a:'enersight',    b:'exec-cb',       d:'Enersight ↔ Execute Capital Budgeting: project activities, timing and capital; schedule updates feed back into Enersight short-term plan' },
+  { a:'enersight',    b:'exec-os',       d:'Enersight ↔ Execute Operational Scheduling: activity/schedule data sourced from Enersight; post-scheduling adjustments feed back' },
+  { a:'exec-afe',     b:'exec-cb',       d:'Execute AFE ↔ Capital Budgeting: AFEs raised/allocated to projects; revised estimates update capital forecasts' },
+  { a:'exec-afe',     b:'exec-wd',       d:'Execute AFE ↔ Well Delivery: AFEs created directly from a Job in the Well Delivery process' },
+  { a:'exec-cb',      b:'exec-os',       d:'Execute Capital Budgeting ↔ Operational Scheduling: activities viewed on schedule; timing changes reflected between modules' },
+  { a:'exec-cb',      b:'valnav',        d:'Execute Capital Budgeting ↔ Val Nav: Val Nav pushes initial capital forecasts; monthly reforecast updates economics and reserves' },
+  { a:'exec-os',      b:'exec-wd',       d:'Execute Operational Scheduling ↔ Well Delivery: Well Delivery job info linked and displayed on Gantt chart' },
+  // Field Measurement internal
+  { a:'analyzit', b:'flowcal', d:'ANALYZEit → FLOWCAL: direct Field Apps suite integration (gas chromatograph analysis)' },
+  { a:'calcit',   b:'flowcal', d:'CALCit → FLOWCAL: direct Field Apps suite integration (flow calculations)' },
+  { a:'flowcal',  b:'proveit', d:'FLOWCAL ↔ PROVEit: Field Apps suite (measurement uncertainty analysis)' },
+  { a:'flowcal',  b:'pycit',   d:'FLOWCAL ↔ PYCit: Field Apps suite' },
+  { a:'flowcal',  b:'testit',  d:'FLOWCAL ↔ TESTit: testing and calibration data integrated to measurement system' },
+  // On Demand internal
+  { a:'od-land',       b:'od-accounting', d:'On Demand Land ↔ On Demand Accounting: business associates/vendors, wells, payment data' },
+  { a:'od-accounting', b:'od-prodops',    d:'On Demand Accounting ↔ Production Operations: financial and operational data both ways' },
+  { a:'od-accounting', b:'od-wellops',    d:'On Demand Accounting ↔ Well Operations: wells auto-created from ODA; master data synced into ODW' },
+  { a:'od-prodops',    b:'od-wellops',    d:'On Demand Production Ops ↔ Well Operations: well & site info; daily production entries and alarms' },
+  { a:'od-prodops',    b:'od-scada',      d:'On Demand Production Ops ↔ OD SCADA: well & site info; daily production and alarms' },
+  { a:'od-prodops',    b:'zdscada',       d:'On Demand Production Ops ↔ zdSCADA: streamed production data (oil, gas, water) and alarms' },
+  // Finance internal
+  { a:'tips', b:'qptm', d:'My Quorum TIPS ↔ PTM: business associates, contracts, meters and volumes' },
+
+  // Cross-family shown via INTERCHANGE (no separate bus line needed):
+  { a:'flowcal',  b:'eone',         d:'FLOWCAL → eONE: actuals / measurement tickets for commercial gas processing' },
+  { a:'flowcal',  b:'tips',         d:'FLOWCAL ↔ My Quorum TIPS: meter definition, measurement data and locations' },
+  { a:'flowcal',  b:'qptm',         d:'FLOWCAL ↔ My Quorum PTM: locations and measurement data' },
+  { a:'exec-afe', b:'od-accounting',d:'Execute AFE ↔ On Demand Accounting: approved AFEs pushed in real-time; AFE actuals pulled periodically; shared master data synced' },
+  { a:'exec-afe', b:'od-wellops',   d:'Execute AFE ↔ On Demand Well Operations: approved AFEs published to ODW; summarised field estimates imported into Execute' },
+  { a:'tips',     b:'od-accounting',d:'My Quorum TIPS ↔ On Demand Accounting: journal entries' },
+  { a:'qptm',     b:'od-accounting',d:'My Quorum PTM ↔ On Demand Accounting: journal entries' },
+
+  // Cross-family shown as BUS ROUTES (dashed lines):
+  { a:'flowcal',  b:'od-scada',     d:'FLOWCAL ↔ OD SCADA: gas analysis (FLOWCAL→SCADA); flow measurement data (SCADA→FLOWCAL)', bus:true },
+  { a:'valnav',   b:'od-accounting',d:'Val Nav ↔ On Demand Accounting: non-op well details and volumes integrated into Val Nav', bus:true },
+  { a:'valnav',   b:'od-prodops',   d:'Val Nav ↔ On Demand Production Operations: production data exchange', bus:true },
+  { a:'dyndocs',  b:'exec-platform',d:'Dynamic Docs ↔ Execute Platform: attachments for AFEs, wells and records stored in Dynamic Docs', bus:true },
+  { a:'dyndocs',  b:'od-accounting',d:'Dynamic Docs ↔ On Demand Accounting: document management', bus:true },
+  { a:'dyndocs',  b:'od-wellops',   d:'Dynamic Docs ↔ On Demand Well Operations: well file and document management', bus:true },
+];
+
+/* ── LOOKUPS ────────────────────────────────────────────── */
+const prodById = {};
+PRODUCTS.forEach(p => { prodById[p.id] = p; });
+const connMap = {};
+PRODUCTS.forEach(p => { connMap[p.id] = []; });
+INTEGRATIONS.forEach(({ a, b, d, bus }) => {
+  connMap[a].push({ partner:b, desc:d, bus:!!bus });
+  connMap[b].push({ partner:a, desc:d, bus:!!bus });
+});
+
+/* ── SVG HELPERS ────────────────────────────────────────── */
+const NS  = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('map-svg');
+function E(tag, at={}) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(at)) e.setAttribute(k, String(v));
+  return e;
+}
+function T(s, at={}) { const e = E('text', at); e.textContent = s; return e; }
+
+/* ── BACKGROUND ─────────────────────────────────────────── */
+svg.appendChild(E('rect', { width:1380, height:710, fill:'#FEFDF5' }));
+svg.appendChild(E('rect', { x:14, y:14, width:1352, height:682, fill:'none', stroke:'#DDD9D0', 'stroke-width':1 }));
+
+/* ── RAILS ──────────────────────────────────────────────── */
+/*
+  Key paths:
+
+  Finance mountain   M 170 650  C 220 620  258 562  285 530
+                                C 335 488  378 447  415 415   ← FLOWCAL interchange
+                                C 452 445  505 568  565 650
+                                L 795 650
+
+  OD arch            M 48 530 L 285 530 L 475 530
+                     C 600 530  710 248  760 248              ← Execute AFE interchange
+                     C 810 248  875 530  945 530
+                     L 1295 530
+
+  FM dip             M 48 385 L 245 385
+                     C 320 385  380 415  415 415              ← FLOWCAL interchange
+                     C 450 415  515 385  575 385
+                     L 900 385
+*/
+const RW = 7;
+const railsG = E('g', { id:'rails' });
+svg.appendChild(railsG);
+
+// PE&R Planning — straight at y=115
+railsG.appendChild(E('line', { x1:48, y1:115, x2:1128, y2:115,
+  stroke:LINE_DEFS.per.color, 'stroke-width':RW, 'stroke-linecap':'round' }));
+// PE&R Execute — diagonal fork then horizontal y=248
+railsG.appendChild(E('path', { d:'M 505 115 L 615 248 L 1235 248',
+  stroke:LINE_DEFS.per.color, 'stroke-width':RW, fill:'none',
+  'stroke-linecap':'round', 'stroke-linejoin':'round' }));
+
+// Field Measurement — dips at FLOWCAL (415,415)
+railsG.appendChild(E('path', { d:'M 48 385 L 245 385 C 320 385 380 415 415 415 C 450 415 515 385 575 385 L 900 385',
+  stroke:LINE_DEFS.field.color, 'stroke-width':RW, fill:'none',
+  'stroke-linecap':'round', 'stroke-linejoin':'round' }));
+
+// Dynamic Docs stub
+railsG.appendChild(E('line', { x1:1225, y1:385, x2:1285, y2:385,
+  stroke:LINE_DEFS.docs.color, 'stroke-width':RW, 'stroke-linecap':'round' }));
+
+// On Demand — arches up through Execute AFE (760,248)
+railsG.appendChild(E('path', {
+  d:'M 48 530 L 285 530 L 475 530 C 600 530 710 248 760 248 C 810 248 875 530 945 530 L 1295 530',
+  stroke:LINE_DEFS.od.color, 'stroke-width':RW, fill:'none',
+  'stroke-linecap':'round', 'stroke-linejoin':'round' }));
+
+// Finance — mountain curve through OD Accounting (285,530) then FLOWCAL (415,415)
+railsG.appendChild(E('path', {
+  d:'M 170 650 C 220 620 258 562 285 530 C 335 488 378 447 415 415 C 452 445 505 568 565 650 L 795 650',
+  stroke:LINE_DEFS.finance.color, 'stroke-width':RW, fill:'none',
+  'stroke-linecap':'round', 'stroke-linejoin':'round' }));
+
+/* ── LINE NAME LABELS ───────────────────────────────────── */
+const llG = E('g', { id:'line-names' });
+svg.appendChild(llG);
+[
+  { k:'per',     x:52,   y:98,  s:'PLANNING, ECONOMICS & RESERVES' },
+  { k:'per',     x:619,  y:265, s:'EXECUTE' },
+  { k:'field',   x:52,   y:368, s:'FIELD MEASUREMENT' },
+  { k:'od',      x:52,   y:513, s:'UPSTREAM ON-DEMAND' },
+  { k:'finance', x:55,   y:668, s:'FINANCE & TRANSACTIONS' },
+  { k:'docs',    x:1338, y:368, s:'DOCS', end:true },
+].forEach(ll => {
+  llG.appendChild(T(ll.s, {
+    x:ll.x, y:ll.y, fill:LINE_DEFS[ll.k].color,
+    'font-family':"'Barlow Condensed',Arial Narrow,sans-serif",
+    'font-size':9.5, 'font-weight':700, 'letter-spacing':1,
+    'text-anchor': ll.end ? 'end' : 'start', opacity:0.58,
+  }));
+});
+
+/* ── BUS CONNECTIONS (6 dashed lines) ───────────────────── */
+const busG = E('g', { id:'bus-g' });
+svg.appendChild(busG);
+
+INTEGRATIONS.filter(i => i.bus).forEach(({ a, b }) => {
+  const pa = prodById[a], pb = prodById[b];
+  busG.appendChild(E('line', {
+    x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y,
+    stroke:'#777', 'stroke-width':1.5, 'stroke-dasharray':'7 4',
+    opacity:0.18, class:`bus-line bus--${a} bus--${b}`,
+  }));
+});
+
+/* ── STATIONS ───────────────────────────────────────────── */
+const stnsG = E('g', { id:'stations' });
+svg.appendChild(stnsG);
+const stnEls = {}, stnMeta = {};
+
+PRODUCTS.forEach(p => {
+  const color  = LINE_DEFS[p.line].color;
+  const isX    = !!p.interchange;
+  const baseR  = isX ? 11 : (p.junction ? 8 : 6.5);
+  const baseSW = isX ? 3  : 3.5;
+  stnMeta[p.id] = { baseR, baseSW, isX };
+
+  const g = E('g', { class:'stn', 'data-id':p.id, style:'cursor:pointer' });
+
+  // Halo ring for junction / hub / interchange
+  if (p.interchange || p.junction || p.hub) {
+    g.appendChild(E('circle', { cx:p.x, cy:p.y, r:baseR+5,
+      fill:'none', stroke: isX ? '#444' : color,
+      'stroke-width':1.5, opacity:0.22 }));
+  }
+
+  // Station dot — interchange uses neutral dark border; others use line colour
+  g.appendChild(E('circle', { cx:p.x, cy:p.y, r:baseR,
+    fill:'white', stroke: isX ? '#333' : color,
+    'stroke-width':baseSW, class:'stn-dot' }));
+
+  // Label — all rotate −45° (upper-right)
+  g.appendChild(T(p.label, {
+    transform:`translate(${p.x+5},${p.y-10}) rotate(-45)`,
+    'font-family':"'Barlow',Arial,sans-serif",
+    'font-size':10, 'font-weight':500, fill:'#1a1a1a',
+    'text-anchor':'start', class:'stn-label',
+  }));
+
+  stnsG.appendChild(g);
+  stnEls[p.id] = g;
+
+  g.addEventListener('mouseenter', () => { if (!pinId) applyHover(p.id); });
+  g.addEventListener('mouseleave', () => { if (!pinId) clearState(); });
+  g.addEventListener('click', e => { e.stopPropagation(); togglePin(p.id); });
+});
+
+svg.addEventListener('click', () => { pinId = null; clearState(); });
+
+/* ── MAP BRANDING (bottom-right) ────────────────────────── */
+const bG = E('g', { transform:'translate(1318,686)' });
+svg.appendChild(bG);
+bG.appendChild(E('circle', { cx:0, cy:0, r:20, fill:'white' }));
+bG.appendChild(E('circle', { cx:0, cy:0, r:20, fill:'none', stroke:'#DC241F', 'stroke-width':7.5 }));
+bG.appendChild(E('rect', { x:'-26', y:'-7', width:52, height:14, fill:'#003688', rx:1.5 }));
+bG.appendChild(T('QUORUM',      { x:0, y:'-1.5', 'text-anchor':'middle', fill:'white', 'font-family':"'Barlow Condensed',Arial,sans-serif", 'font-size':5, 'font-weight':700, 'letter-spacing':1.5 }));
+bG.appendChild(T('UNDERGROUND', { x:0,  y:'5.5', 'text-anchor':'middle', fill:'white', 'font-family':"'Barlow Condensed',Arial,sans-serif", 'font-size':3.5,'font-weight':600,'letter-spacing':1 }));
+svg.appendChild(T('Quorum Software · 2025', { x:1350, y:703, fill:'#bbb', 'font-family':"'Barlow',Arial,sans-serif", 'font-size':9, 'text-anchor':'end' }));
+
+/* ── INTERACTION ─────────────────────────────────────────── */
+let pinId = null;
+
+function applyHover(id) {
+  const conn = new Set(connMap[id].map(c => c.partner));
+  conn.add(id);
+
+  PRODUCTS.forEach(p => {
+    stnEls[p.id].style.opacity = conn.has(p.id) ? '1' : '0.10';
+  });
+
+  // Enlarge hovered station
+  const dot = stnEls[id].querySelector('.stn-dot');
+  if (dot) {
+    const m = stnMeta[id];
+    dot.setAttribute('r',            m.baseR + 2.5);
+    dot.setAttribute('stroke-width', m.baseSW + 1.5);
+  }
+
+  // Bus lines
+  document.querySelectorAll('.bus-line').forEach(el => {
+    const rel = (el.getAttribute('class') || '').includes(`bus--${id}`);
+    el.setAttribute('opacity', rel ? 0.9 : 0.04);
+    el.setAttribute('stroke',  rel ? '#222' : '#777');
+    el.setAttribute('stroke-width', rel ? 2.5 : 1.5);
+  });
+
+  renderInfo(id);
+}
+
+function clearState() {
+  PRODUCTS.forEach(p => {
+    stnEls[p.id].style.opacity = '1';
+    const dot = stnEls[p.id].querySelector('.stn-dot');
+    if (dot) {
+      const m = stnMeta[p.id];
+      dot.setAttribute('r',            m.baseR);
+      dot.setAttribute('stroke-width', m.baseSW);
+    }
+  });
+  document.querySelectorAll('.bus-line').forEach(el => {
+    el.setAttribute('opacity', 0.18);
+    el.setAttribute('stroke',  '#777');
+    el.setAttribute('stroke-width', 1.5);
+  });
+  document.getElementById('info-panel').innerHTML =
+    '<span class="info-placeholder">Hover over a station to explore integrations</span>';
+}
+
+function togglePin(id) {
+  if (pinId === id) { pinId = null; clearState(); }
+  else              { pinId = id;  applyHover(id); }
+}
+
+function renderInfo(id) {
+  const p    = prodById[id];
+  const line = LINE_DEFS[p.line];
+  const full = p.full || p.label;
+  const same  = connMap[id].filter(c => !c.bus);
+  const buses = connMap[id].filter(c =>  c.bus);
+
+  let html = '';
+  same.forEach(c => {
+    const pp = prodById[c.partner];
+    html += `<span class="conn-chip">
+      <span class="conn-dot" style="background:${LINE_DEFS[pp.line].color}"></span>
+      ${pp.full || pp.label}</span>`;
+  });
+  buses.forEach(c => {
+    const pp = prodById[c.partner];
+    html += `<span class="conn-chip">
+      <span class="conn-dot-bus"></span>${pp.full || pp.label}</span>`;
+  });
+
+  let xchg = '';
+  if (p.interchange && p.xLines) {
+    const names = p.xLines.map(k => LINE_DEFS[k].name).join(' × ');
+    xchg = `<span class="info-xchg">⊙ Interchange: ${names}</span>`;
+  }
+
+  document.getElementById('info-panel').innerHTML = `
+    <span class="info-name">${full}</span>
+    <span class="info-badge" style="background:${line.color}">${line.name}</span>
+    ${xchg}
+    <div class="info-conns">${html || '<em style="color:#aaa">No mapped integrations</em>'}</div>
+  `;
+}
+
+/* ── LEGEND ─────────────────────────────────────────────── */
+const legEl = document.getElementById('legend');
+Object.values(LINE_DEFS).forEach(def => {
+  const d = document.createElement('div');
+  d.className = 'legend-item';
+  d.innerHTML = `<div class="leg-swatch" style="background:${def.color}"></div>${def.name}`;
+  legEl.appendChild(d);
+});
+[
+  `<div class="leg-xchg"></div>Cross-family interchange`,
+  `<div class="leg-bus"></div>Additional cross-family connection (bus)`,
+].forEach(h => {
+  const d = document.createElement('div');
+  d.className = 'legend-item';
+  d.innerHTML = h;
+  legEl.appendChild(d);
+});
+
+/* ── ROUNDEL DOWNLOAD ────────────────────────────────────── */
+function downloadRoundel() {
+  const src = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-70 -70 140 140" width="280" height="280">
+  <circle cx="0" cy="0" r="57" fill="white"/>
+  <circle cx="0" cy="0" r="57" fill="none" stroke="#DC241F" stroke-width="21"/>
+  <rect x="-72" y="-19" width="144" height="38" fill="#003688" rx="3"/>
+  <text x="0" y="-3" text-anchor="middle" fill="white"
+        font-family="Arial Narrow,Arial,sans-serif"
+        font-size="18" font-weight="700"
+        textLength="130" lengthAdjust="spacingAndGlyphs">QUORUM</text>
+  <text x="0" y="14" text-anchor="middle" fill="white"
+        font-family="Arial Narrow,Arial,sans-serif"
+        font-size="11.5" font-weight="700"
+        textLength="138" lengthAdjust="spacingAndGlyphs">UNDERGROUND</text>
+</svg>`;
+  const blob = new Blob([src], { type:'image/svg+xml' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: 'quorum-underground-roundel.svg',
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+</script>
+</body>
+</html>
