@@ -7,14 +7,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #C2BDB5; font-family: 'Barlow', Arial, sans-serif; padding: 22px 28px 30px; min-height: 100vh; }
+body { background: #C2BDB5; font-family: 'Barlow', Arial, sans-serif; padding: 8px 28px 12px; min-height: 100vh; }
 .page { max-width: 1440px; margin: 0 auto; }
 
-.map-header { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
-.title h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 700; color: #003688; letter-spacing: 0.07em; text-transform: uppercase; }
-.title p  { margin-top: 5px; font-size: 13px; color: #666; max-width: 620px; line-height: 1.5; }
-.btn-dl   { margin-left: auto; padding: 9px 18px; background: #003688; color: #fff; border: none; border-radius: 3px; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s; }
-.btn-dl:hover { background: #0044b0; }
+.map-header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.title h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; color: #003688; letter-spacing: 0.07em; text-transform: uppercase; }
+.title p  { margin-top: 3px; font-size: 12px; color: #444; max-width: 680px; line-height: 1.4; }
 
 .map-card { background: #FEFDF5; border: 1.5px solid #AEAAA0; border-radius: 5px; overflow: hidden; box-shadow: 0 3px 20px rgba(0,0,0,0.14); position: relative; }
 #map-svg  { display: block; width: 100%; }
@@ -62,7 +60,7 @@ body { background: #C2BDB5; font-family: 'Barlow', Arial, sans-serif; padding: 2
       3. Blue bar overlapping the ring (drawn LAST so it sits in front)
       4. White text filling the banner
     -->
-    <svg width="92" height="92" viewBox="-56 -56 112 112" style="flex-shrink:0" aria-label="Quorum Underground roundel">
+    <svg width="68" height="68" viewBox="-56 -56 112 112" style="flex-shrink:0" aria-label="Quorum Underground roundel">
       <circle cx="0" cy="0" r="46" fill="white"/>
       <circle cx="0" cy="0" r="46" fill="none" stroke="#DC241F" stroke-width="18"/>
       <rect   x="-57" y="-15" width="114" height="30" fill="#003688"/>
@@ -78,16 +76,12 @@ body { background: #C2BDB5; font-family: 'Barlow', Arial, sans-serif; padding: 2
 
     <div class="title">
       <h1>Quorum Underground</h1>
-      <p>Product integration map — hover to explore connections, click to pin.
-         Line intersections ⊙ are cross-family interchange stations.
-         Dashed routes show additional cross-family connections.</p>
+      <p>Product integration map — hover to explore connections, click to pin. Line intersections ⊙ are cross-family interchange stations. Dashed routes show additional cross-family connections.</p>
     </div>
-
-    <button class="btn-dl" onclick="downloadRoundel()">↓ Roundel SVG</button>
   </header>
 
   <div class="map-card">
-    <svg id="map-svg" viewBox="0 0 1380 870" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="map-svg" viewBox="0 0 1380 820" xmlns="http://www.w3.org/2000/svg"></svg>
     <div id="info-overlay" class="info-overlay hidden">
       <span class="info-ov-close" id="ov-close" title="Close">✕</span>
       <div id="ov-body"></div>
@@ -179,12 +173,12 @@ const PRODUCTS = [
   { id:'tips',  label:'My Quorum TIPS', line:'finance', x:565, y:650, full:'My Quorum Gathering & Plant Accounting (TIPS)' },
   { id:'qptm',  label:'My Quorum PTM',  line:'finance', x:795, y:650, full:'My Quorum Pipeline Transaction Management' },
 
-  // International Operations & Transactions  y = 760 — single unbroken line
-  { id:'daw-personnel', label:'DaWinci Personnel', line:'intl', x:100, y:760, full:'DaWinci Personnel Logistics' },
-  { id:'daw-cargo',     label:'DaWinci Cargo',     line:'intl', x:260, y:760, full:'DaWinci Cargo Logistics' },
-  { id:'ec-upstream',   label:'EC Upstream',       line:'intl', x:440, y:760, full:'Energy Components – Upstream (Production)' },
-  { id:'ec-midstream',  label:'EC Midstream',      line:'intl', x:610, y:760, full:'Energy Components – Midstream' },
-  { id:'ec-framework',  label:'EC Framework',      line:'intl', x:780, y:760, full:'Energy Components – Framework' },
+  // International Operations & Transactions  y = 720 — single unbroken line
+  { id:'daw-personnel', label:'DaWinci Personnel', line:'intl', x:100, y:720, full:'DaWinci Personnel Logistics' },
+  { id:'daw-cargo',     label:'DaWinci Cargo',     line:'intl', x:260, y:720, full:'DaWinci Cargo Logistics' },
+  { id:'ec-upstream',   label:'EC Upstream',       line:'intl', x:440, y:720, full:'Energy Components – Upstream (Production)' },
+  { id:'ec-midstream',  label:'EC Midstream',      line:'intl', x:610, y:720, full:'Energy Components – Midstream' },
+  { id:'ec-framework',  label:'EC Framework',      line:'intl', x:780, y:720, full:'Energy Components – Framework' },
 ];
 
 /* ── INTEGRATIONS ───────────────────────────────────────── */
@@ -268,8 +262,8 @@ function E(tag, at={}) {
 function T(s, at={}) { const e = E('text', at); e.textContent = s; return e; }
 
 /* ── BACKGROUND ─────────────────────────────────────────── */
-svg.appendChild(E('rect', { width:1380, height:710, fill:'#FEFDF5' }));
-svg.appendChild(E('rect', { x:14, y:14, width:1352, height:842, fill:'none', stroke:'#DDD9D0', 'stroke-width':1 }));
+svg.appendChild(E('rect', { width:1380, height:820, fill:'#FEFDF5' }));
+svg.appendChild(E('rect', { x:14, y:14, width:1352, height:792, fill:'none', stroke:'#DDD9D0', 'stroke-width':1 }));
 
 /* ── RAILS ──────────────────────────────────────────────── */
 /*
@@ -325,7 +319,7 @@ railsG.appendChild(E('path', {
   'stroke-linecap':'round', 'stroke-linejoin':'round' }));
 
 // International Operations & Transactions — single unbroken line, ends past EC Framework
-railsG.appendChild(E('line', { x1:48, y1:760, x2:830, y2:760,
+railsG.appendChild(E('line', { x1:48, y1:720, x2:830, y2:720,
   stroke:LINE_DEFS.intl.color, 'stroke-width':RW, 'stroke-linecap':'round' }));
 
 /* ── LINE NAME LABELS ───────────────────────────────────── */
@@ -338,7 +332,7 @@ svg.appendChild(llG);
   { k:'od',      x:90,   y:548, s:'UPSTREAM ON-DEMAND' },
   { k:'finance', x:55,   y:668, s:'FINANCE & TRANSACTIONS' },
   { k:'docs',    x:1255, y:403, s:'DOCS', end:true },
-  { k:'intl',    x:100,  y:778, s:'INTERNATIONAL OPERATIONS & TRANSACTIONS' },
+  { k:'intl',    x:100,  y:738, s:'INTERNATIONAL OPERATIONS & TRANSACTIONS' },
 ].forEach(ll => {
   llG.appendChild(T(ll.s, {
     x:ll.x, y:ll.y, fill:LINE_DEFS[ll.k].color,
@@ -412,7 +406,7 @@ const legData = [
   { color: null, label: 'Cross-family interchange', type:'xchg' },
   { color: null, label: 'Cross-family connection (bus)', type:'bus'  },
 ];
-const LEG_X1 = 880, LEG_X2 = 1125, LEG_Y0 = 797, LEG_DY = 18;
+const LEG_X1 = 880, LEG_X2 = 1125, LEG_Y0 = 685, LEG_DY = 18;
 const legBg = E('rect', { x:LEG_X1-10, y:LEG_Y0-14, width:490, height:legData.length/2*LEG_DY+20,
   fill:'rgba(254,253,245,0.90)', stroke:'#D8D4CB', 'stroke-width':1, rx:4 });
 svg.appendChild(legBg);
@@ -439,7 +433,7 @@ legData.forEach((item, i) => {
     'font-size':9.5, 'font-weight':500,
   }));
 });
-svg.appendChild(T('Quorum Software · 2025', { x:1350, y:864, fill:'#bbb',
+svg.appendChild(T('Quorum Software · 2025', { x:1350, y:812, fill:'#bbb',
   'font-family':"'Barlow',Arial,sans-serif", 'font-size':9, 'text-anchor':'end' }));
 
 /* ── INTERACTION ─────────────────────────────────────────── */
@@ -538,28 +532,7 @@ function renderInfo(id) {
 }
 
 /* ── ROUNDEL DOWNLOAD ────────────────────────────────────── */
-function downloadRoundel() {
-  const src = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-70 -70 140 140" width="280" height="280">
-  <circle cx="0" cy="0" r="57" fill="white"/>
-  <circle cx="0" cy="0" r="57" fill="none" stroke="#DC241F" stroke-width="21"/>
-  <rect x="-72" y="-19" width="144" height="38" fill="#003688" rx="3"/>
-  <text x="0" y="-3" text-anchor="middle" fill="white"
-        font-family="Arial Narrow,Arial,sans-serif"
-        font-size="18" font-weight="700"
-        textLength="130" lengthAdjust="spacingAndGlyphs">QUORUM</text>
-  <text x="0" y="14" text-anchor="middle" fill="white"
-        font-family="Arial Narrow,Arial,sans-serif"
-        font-size="11.5" font-weight="700"
-        textLength="138" lengthAdjust="spacingAndGlyphs">UNDERGROUND</text>
-</svg>`;
-  const blob = new Blob([src], { type:'image/svg+xml' });
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(blob),
-    download: 'quorum-underground-roundel.svg',
-  });
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-}
+// (removed)
 </script>
 </body>
 </html>
